@@ -1,0 +1,5 @@
+Pillow==9.4.0
+PyMuPDF==1.21.1
+reportlab==3.6.12
+Send2Trash==1.8.0
+tqdm==4.64.1

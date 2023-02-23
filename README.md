@@ -35,6 +35,8 @@ apt-get install ghostscript
 
 ## Usage
 
+It is strongly recommended to create a bin file in a directory with a path that calls these Python files.
+
 ##### PDFMake
 
 ```shell

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import tqdm
 from PIL import Image
 
-from Core.lib.regex_check import regex_check
+from Core.Util.RegexChoice import RegexChoice
 from Core.Error import CommandError
 from Core.Logger import Logger
 from Core.FileManager import FileManager
@@ -42,7 +42,7 @@ class PDFMake:
     def run(self, arguments: list[str]):
         parser = ArgumentParser(prog=self.command_name, description="Convert images to PDF.")
         parser.add_argument("inputs", nargs="+", help="Input images or directory.")
-        parser.add_argument("-s", "--size", type=str, default="nolimit", choices=regex_check(r"nolimit|small|medium|large|\d+x\d+"), 
+        parser.add_argument("-s", "--size", type=str, default="nolimit", choices=RegexChoice(r"nolimit|small|medium|large|\d+x\d+"), 
                             help="Image max size in PDF. small: 1200x1200, medium: 1500x1500, large: 2000x2000 (default: nolimit)")
         parser.add_argument("-o", "--output", default=None, help="Output directory. (default: input file directory)")
         parser.add_argument("-d", "--delete", default=False, action="store_true", help="Delete images/directories after convert.")

@@ -13,6 +13,26 @@ A package of 3 tools.
 $ pip install -r requirements.txt
 ```
 
+##### macOS
+
+```
+brew install ghostscript
+```
+
+##### Windows
+
+```
+winget install -e --id ArtifexSoftware.GhostScript
+```
+
+##### Linux
+
+```
+apt-get install ghostscript
+```
+
+
+
 ## Usage
 
 ##### PDFMake

@@ -1,4 +1,4 @@
-# PDFMAKE
+# pdfmake
 
 pdfmake is a command line tools (CLI)
 

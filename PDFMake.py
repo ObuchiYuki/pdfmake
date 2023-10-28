@@ -43,7 +43,7 @@ class PDFMake:
         parser = ArgumentParser(prog=self.command_name, description="Convert images to PDF.")
         parser.add_argument("inputs", nargs="+", help="Input images or directory.")
         parser.add_argument("-s", "--size", type=str, default="nolimit", choices=RegexChoice(r"nolimit|small|medium|large|\d+x\d+"), 
-                            help="Image max size in PDF. small: 1200x1200, medium: 1500x1500, large: 2000x2000 (default: nolimit)")
+                            help="Image max size in PDF. small: 1200x1200, medium: 1500x1500, large: 2000x2000 (default: medium)")
         parser.add_argument("-o", "--output", default=None, help="Output directory. (default: input file directory)")
         parser.add_argument("-d", "--delete", default=False, action="store_true", help="Delete images/directories after convert.")
         parser.add_argument("-c", "--compress", type=str, default="default", choices=["none", "default", "high", "very_high"], help="PDF Compression Level.")

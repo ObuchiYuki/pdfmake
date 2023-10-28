@@ -8,6 +8,10 @@ from tqdm import tqdm
 from Core.Logger import Logger
 
 class PDFDocument:
+    """
+    PDFを生成するクラス
+    @param title: PDFのタイトル
+    """
     title: str
     auther: str | None
     pages: list[Path]

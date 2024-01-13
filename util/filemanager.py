@@ -5,8 +5,8 @@ from pathlib import Path
 
 from uuid import uuid4 as uuid
 
-from Core.Logger import Logger
-from Core.Error import *
+from core.logger import Logger
+from util.error import *
 
 class FileManager:
     command_name: str

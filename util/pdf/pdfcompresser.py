@@ -2,9 +2,10 @@ from pathlib import Path
 import subprocess
 import distutils.spawn
 from enum import Enum
+from typing import Union
 
-from Core.FileManager import FileManager
-from Core.Logger import Logger
+from util.filemanager import FileManager
+from core.logger import Logger
 
 class PDFCompressLevel(Enum):
     none = -1
@@ -12,18 +13,24 @@ class PDFCompressLevel(Enum):
     very_high = 0
     high = 1
     default = 2
-    # low = 3
-    # very_low = 4
+    low = 3
+    very_low = 4
 
     @staticmethod
-    def from_str(string: str) -> "PDFCompressLevel":
+    def from_str(string: str) -> Union["PDFCompressLevel", None]:
         if string == "default":
             return PDFCompressLevel.default
         if string == "high":
             return PDFCompressLevel.high
         if string == "very_high":
             return PDFCompressLevel.very_high
-        return PDFCompressLevel.default
+        if string == "low":
+            return PDFCompressLevel.low
+        if string == "very_low":
+            return PDFCompressLevel.very_low
+        if string == "none":
+            return PDFCompressLevel.none
+        return None
 
     def gs_name(self) -> str:
         if self == PDFCompressLevel.very_high:
@@ -32,6 +39,12 @@ class PDFCompressLevel(Enum):
             return "ebook"
         if self == PDFCompressLevel.default:
             return "default"
+        if self == PDFCompressLevel.low:
+            return "printer"
+        if self == PDFCompressLevel.very_low:
+            return "prepress"
+        if self == PDFCompressLevel.none:
+            assert False, "PDFCompressLevel.none has no gs_name."
             
         return "default"
 

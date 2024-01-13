@@ -1,23 +1,28 @@
+
+ 
+# ================================================== #
+
 import os
 import shutil
 from pathlib import Path
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
+
 from dataclasses import dataclass
 
 import tqdm
 from PIL import Image
 
-from Core.Util.RegexChoice import RegexChoice
-from Core.Error import CommandError
-from Core.Logger import Logger
-from Core.FileManager import FileManager
-from Core.PDFDocument import PDFDocument
+from core.Util.natural_sort import natural_sort
+from core.Util.RegexChoice import RegexChoice
+from core.Error import CommandError
+from core.Logger import Logger
+from core.FileManager import FileManager
+from core.PDFDocument import PDFDocument
 
-from Module.PDFCompresser import PDFCompresser
-from Module.OptionParser import OptionParser, ResizeMode, CompressMode
+from common.PDFCompresser import PDFCompresser
+from common.OptionParser import OptionParser, ResizeMode, CompressMode
 
 image_exts =  {"png", "jpeg", "jpg", "webp", "heic"}
-
 
 class PDFMake:
     command_name: str
@@ -40,21 +45,45 @@ class PDFMake:
         self.option_parser = OptionParser(logger)
 
     def run(self, arguments: list[str]):
-        parser = ArgumentParser(prog=self.command_name, description="Convert images to PDF.")
-        parser.add_argument("inputs", nargs="+", help="Input images or directory.")
-        parser.add_argument("-s", "--size", type=str, default="nolimit", choices=RegexChoice(r"nolimit|small|medium|large|\d+x\d+"), 
-                            help="Image max size in PDF. small: 1200x1200, medium: 1500x1500, large: 2000x2000 (default: medium)")
-        parser.add_argument("-o", "--output", default=None, help="Output directory. (default: input file directory)")
-        parser.add_argument("-d", "--delete", default=False, action="store_true", help="Delete images/directories after convert.")
-        parser.add_argument("-c", "--compress", type=str, default="default", choices=["none", "default", "high", "very_high"], help="PDF Compression Level.")
+        parser = ArgumentParser(
+            prog=self.command_name,
+            description="Convert images to PDF.",
+            formatter_class=RawTextHelpFormatter
+        )
+        parser.add_argument(
+            "inputs", nargs="+", 
+            help="Input images or directory."
+        )
+        parser.add_argument(
+            "-t", "--type", default=None,
+            choices=["comic", "illust", "photo", "novel"],
+            help="Compress and resize type. (default: comic) \n- comic: -s medium -c default\n- illust: -s large -c very_low\n- photo: -s nolimit -c very_low\n- novel: -s nolimit -c default"
+        )
+        parser.add_argument(
+            "-s", "--size", type=str, default="medium", 
+            choices=RegexChoice(r"nolimit|small|medium|large|\d+x\d+"), 
+            help="Image max size in PDF (aspect fit) (default: medium). \n- small: 1200x1200\n- medium: 1500x1500\n- large: 2000x2000\n- nolimit: input size"
+        )
+        parser.add_argument(
+            "-c", "--compress", type=str, default="default", 
+            choices=["none", "very_low", "low", "default", "high", "very_high"],
+            help="PDF Compression Level (default: default).\n- very_low: 72 dpi\n- low: 150 dpi\n- default: auto\n- high: 300 dpi\n- very_high: 300 dpi~"
+        )
+        parser.add_argument(
+            "-d", "--delete", default=False, action="store_true",
+            help="Delete images/directories after convert."
+        )
+        parser.add_argument(
+            "-o", "--output", default=None, 
+            help="Output directory. (default: input file directory)"
+        )
 
         res = parser.parse_args(arguments)
         
         delete = res.delete or False
         output = self.option_parser.parse_output(res.output)
-        resizemode = self.option_parser.parse_size(res.size)
-        compressmode = self.option_parser.parse_compress(res.compress)
-
+        resizemode, compressmode = self.option_parser.parse_preprocess(res.compress, res.size, res.type)
+        
         options = PDFMake.Options(delete=delete, resizemode=resizemode, compressmode=compressmode)
 
         # ================================================== #
@@ -95,7 +124,7 @@ class PDFMake:
             if not directory.is_dir():
                 raise CommandError(f"{directory.name} is not directory.")
             images = [p for p in directory.iterdir() if p.suffix.lstrip('.') in image_exts and not p.name.startswith(".")]
-            images.sort()
+            natural_sort(images)
             if len(images):
                 self.logger.log(f"{len(images)} images found in '{directory.name}'.")
                 output_result = self.make_pdf_from_images(name=directory.name, options=options, output=output or directory.parent, images=images)

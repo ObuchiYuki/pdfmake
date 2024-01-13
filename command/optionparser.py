@@ -22,19 +22,40 @@ class OptionParser:
 
     def __init__(self, logger: Logger) -> None:
         self.logger = logger
+
+    def parse_preprocess(self, compress: Any | None, size: Any | None, type: Any | None) -> tuple[ResizeMode, CompressMode]:
+        resize_mode = self.parse_size(size)
+        compress_mode = self.parse_compress(compress)
+        
+        if type == "comic":
+            resize_mode = ResizeMode(no_limit=False, size=(1500, 1500))
+            compress_mode = CompressMode(no_compress=False, level=PDFCompressLevel.default)
+        elif type == "illust":
+            resize_mode = ResizeMode(no_limit=False, size=(2000, 2000))
+            compress_mode = CompressMode(no_compress=False, level=PDFCompressLevel.very_low)
+        elif type == "photo":
+            resize_mode = ResizeMode(no_limit=True, size=(0, 0))
+            compress_mode = CompressMode(no_compress=False, level=PDFCompressLevel.very_low)
+        elif type == "novel":
+            resize_mode = ResizeMode(no_limit=True, size=(0, 0))
+            compress_mode = CompressMode(no_compress=True, level=PDFCompressLevel.default)
+        
+        return resize_mode, compress_mode
+
     
     def parse_compress(self, compress_str: Any | None) -> CompressMode:
-        if compress_str == "none":
+        if compress_str is None:
             return CompressMode(no_compress=True, level=PDFCompressLevel.default)
-        if compress_str == "default":
-            return CompressMode(no_compress=False, level=PDFCompressLevel.default)
-        if compress_str == "high":
-            return CompressMode(no_compress=False, level=PDFCompressLevel.high)
-        if compress_str == "very_high":
-            return CompressMode(no_compress=False, level=PDFCompressLevel.very_high)
         
-        self.logger.error(f"Unkown compress mode '{compress_str}'. Using default mode. (default)")
-        return CompressMode(no_compress=False, level=PDFCompressLevel.default)
+        level = PDFCompressLevel.from_str(compress_str)
+        if level is None:
+            self.logger.error(f"Unkown compress mode '{compress_str}'.")
+            exit(1)
+
+        if level == PDFCompressLevel.none:
+            return CompressMode(no_compress=True, level=PDFCompressLevel.default)
+
+        return CompressMode(no_compress=False, level=level)
 
     def parse_output(self, output_str: Any | None) -> Path | None:
         output: Path | None = None

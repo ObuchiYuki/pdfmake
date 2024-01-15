@@ -2,10 +2,8 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Any
 
-from Core.Error import CommandError
-from Core.Logger import Logger
-
-from Module.PDFCompresser import PDFCompressLevel
+import util
+import util.pdf as pdf
 
 @dataclass
 class ResizeMode:
@@ -15,12 +13,12 @@ class ResizeMode:
 @dataclass
 class CompressMode:
     no_compress: bool
-    level: PDFCompressLevel 
+    level: pdf.PDFCompressLevel 
 
 class OptionParser:
-    logger: Logger
+    logger: util.Logger
 
-    def __init__(self, logger: Logger) -> None:
+    def __init__(self, logger: util.Logger) -> None:
         self.logger = logger
 
     def parse_preprocess(self, compress: Any | None, size: Any | None, type: Any | None) -> tuple[ResizeMode, CompressMode]:
@@ -29,31 +27,31 @@ class OptionParser:
         
         if type == "comic":
             resize_mode = ResizeMode(no_limit=False, size=(1500, 1500))
-            compress_mode = CompressMode(no_compress=False, level=PDFCompressLevel.default)
+            compress_mode = CompressMode(no_compress=False, level=pdf.PDFCompressLevel.default)
         elif type == "illust":
             resize_mode = ResizeMode(no_limit=False, size=(2000, 2000))
-            compress_mode = CompressMode(no_compress=False, level=PDFCompressLevel.very_low)
+            compress_mode = CompressMode(no_compress=False, level=pdf.PDFCompressLevel.very_low)
         elif type == "photo":
             resize_mode = ResizeMode(no_limit=True, size=(0, 0))
-            compress_mode = CompressMode(no_compress=False, level=PDFCompressLevel.very_low)
+            compress_mode = CompressMode(no_compress=False, level=pdf.PDFCompressLevel.very_low)
         elif type == "novel":
             resize_mode = ResizeMode(no_limit=True, size=(0, 0))
-            compress_mode = CompressMode(no_compress=True, level=PDFCompressLevel.default)
+            compress_mode = CompressMode(no_compress=True, level=pdf.PDFCompressLevel.default)
         
         return resize_mode, compress_mode
 
     
     def parse_compress(self, compress_str: Any | None) -> CompressMode:
         if compress_str is None:
-            return CompressMode(no_compress=True, level=PDFCompressLevel.default)
+            return CompressMode(no_compress=True, level=pdf.PDFCompressLevel.default)
         
-        level = PDFCompressLevel.from_str(compress_str)
+        level = pdf.PDFCompressLevel.from_str(compress_str)
         if level is None:
             self.logger.error(f"Unkown compress mode '{compress_str}'.")
             exit(1)
 
-        if level == PDFCompressLevel.none:
-            return CompressMode(no_compress=True, level=PDFCompressLevel.default)
+        if level == pdf.PDFCompressLevel.none:
+            return CompressMode(no_compress=True, level=pdf.PDFCompressLevel.default)
 
         return CompressMode(no_compress=False, level=level)
 
@@ -62,7 +60,7 @@ class OptionParser:
         if isinstance(output_str, str):
             output_path = Path(output_str)
             if not output_path.exists():
-                raise CommandError(f"Output path '{output_str}' dose not exist.")
+                raise util.CommandError(f"Output path '{output_str}' dose not exist.")
             output = output_path
 
         return output

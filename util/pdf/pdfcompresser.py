@@ -4,8 +4,7 @@ import distutils.spawn
 from enum import Enum
 from typing import Union
 
-from util.filemanager import FileManager
-from core.logger import Logger
+import util
 
 class PDFCompressLevel(Enum):
     none = -1
@@ -52,10 +51,10 @@ class PDFCompressLevel(Enum):
 class PDFCompresser:
     enabled: bool
 
-    logger: Logger
-    filemanager: FileManager
+    logger: util.Logger
+    filemanager: util.FileManager
 
-    def __init__(self, filemanager: FileManager, logger: Logger):
+    def __init__(self, filemanager: util.FileManager, logger: util.Logger):
         self.logger = logger
         self.filemanager = filemanager
         self.enabled = distutils.spawn.find_executable("gs") is not None

@@ -1,7 +1,3 @@
-
- 
-# ================================================== #
-
 import os
 import shutil
 from pathlib import Path
@@ -12,15 +8,10 @@ from dataclasses import dataclass
 import tqdm
 from PIL import Image
 
-from core.Util.natural_sort import natural_sort
-from core.Util.RegexChoice import RegexChoice
-from core.Error import CommandError
-from core.Logger import Logger
-from core.FileManager import FileManager
-from core.PDFDocument import PDFDocument
+from util import RegexChoice, FileManager, Logger, CommandError, natural_sort
+from util.pdf import PDFDocument, PDFCompresser
 
-from common.PDFCompresser import PDFCompresser
-from common.OptionParser import OptionParser, ResizeMode, CompressMode
+from command import OptionParser, ResizeMode, CompressMode
 
 image_exts =  {"png", "jpeg", "jpg", "webp", "heic"}
 
@@ -104,7 +95,6 @@ class PDFMake:
                 images_pathes.append(path)
             else:
                 self.logger.error(f"Files with the extension '{path.suffix}' are not supported.")
-
 
         # ================================================== #
         # convert #

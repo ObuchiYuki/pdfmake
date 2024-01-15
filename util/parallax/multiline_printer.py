@@ -4,38 +4,79 @@ import sys
 import shutil
 import threading
 import queue
+import unicodedata
 
 import util
 
+"""
+Use with tqdm:
+    from tqdm import tqdm
+
+    printer = MultilinePrinter(nlines=2)
+    printer0 = printer.printer(0)
+    printer1 = printer.printer(1)
+
+    for i in tqdm(range(100), file=printer0, ncols=printer0.ncols):
+        printer1.print(f"i: {i}")
+"""
+
+debug_file = open("debug.txt", "w")
+
 class SingleLinePrinter:
     _index: int | None # none if not root
-    _message: str = ''
+    _message: str = ""
+    _prefix: str = ""
     _subprinters: list["SingleLinePrinter"] 
-    _indent_str: str = ""
     _base_printer: "MultilinePrinter | None"
     _parent: "SingleLinePrinter | None"
 
-    @staticmethod
-    def make_root(index: int | None, multiline_printer: "MultilinePrinter") -> "SingleLinePrinter":
-        return SingleLinePrinter(index=index, parent=None, base_printer=multiline_printer)
+    @property
+    def prefix(self) -> str:
+        return self._prefix
+    
+    @prefix.setter
+    def prefix(self, value: str):
+        self._prefix = value
+        self.flush()
 
-    def __init__(self, index: int | None, parent: "SingleLinePrinter | None" = None, base_printer: "MultilinePrinter | None" = None) -> None:
+    @staticmethod
+    def make_root(index: int | None, prefix: str, multiline_printer: "MultilinePrinter") -> "SingleLinePrinter":
+        return SingleLinePrinter(index=index, parent=None, base_printer=multiline_printer, prefix=prefix)
+    
+    @property
+    def ncols(self) -> int:
+        root = self._get_root()
+        if root._base_printer is None: return 0
+        return root._base_printer.terminal_width - len(util.remove_escape_sequences(self._prefix))
+
+    def __init__(self, index: int | None, prefix: str, parent: "SingleLinePrinter | None" = None, base_printer: "MultilinePrinter | None" = None) -> None:
         self._parent = parent
+        self._prefix = prefix
         self._subprinters = []
         self._base_printer = base_printer
         self._index = index
         self._parent = parent
 
-    def print(self, message: str):
-        self._message = message
+    def clear(self):
+        self._message = ''
+
+    def write(self, message: str): # for tqdm
+        message = message.replace('\n', '').replace('\r', '')
+        if len(message) == 0:
+            return
+        self.print(message)
+        
+    def flush(self):
         root = self._get_root()
         if root._base_printer is not None:
             root._base_printer._add_print_request(root)
-        else:
-            raise Exception("MultilinePrinter is not initialized")
 
-    def subprinter(self) -> "SingleLinePrinter":
-        printer = SingleLinePrinter(index=None, parent=self)
+    def print(self, message: str):
+        self._message = message
+        self.flush()
+
+    def subprinter(self, prefix = "") -> "SingleLinePrinter":
+        printer = SingleLinePrinter(index=None, parent=self, prefix=prefix)
         self._subprinters.append(printer)
         return printer
     
@@ -46,13 +87,13 @@ class SingleLinePrinter:
 
     def _format(self) -> str:
         if len(self._subprinters) == 0:
-            return self._message
+            return self._prefix + self._message
 
         result = self._message
         for subprinter in self._subprinters:
             result += '\n' + subprinter._format()
 
-        return result
+        return self._prefix + result
 
 class MultilinePrinter:        
 
@@ -61,8 +102,6 @@ class MultilinePrinter:
     out: IO[str]
     
     terminal_width: int
-
-    command_name: str | None = None
 
     enabled = True
     
@@ -80,14 +119,13 @@ class MultilinePrinter:
 
     _printers: list[SingleLinePrinter] 
 
-    def __init__(self, nlines: int, out: IO[str] = sys.stdout, disable_input: bool = True, command_name: str | None = None) -> None:
+    def __init__(self, nlines: int, out: IO[str] = sys.stdout, disable_input: bool = True, root_prefix: str = "") -> None:
         self.nlines = nlines
-        self.command_name = command_name
         self._print_queue = queue.Queue()
         self.out = out
         self.terminal_width = self._get_width()
         self._all_messages = [''] * nlines
-        self._printers = [SingleLinePrinter.make_root(i, self) for i in range(nlines)]
+        self._printers = [SingleLinePrinter.make_root(i, root_prefix, self) for i in range(nlines)]
         if disable_input:
             try:
                 tty.setcbreak(sys.stdin.fileno()) # 標準入力を無効化
@@ -115,17 +153,13 @@ class MultilinePrinter:
     def _loop_over_queue(self):
         while not self._finished or not self._print_queue.empty():
             try:
-                message, line = self._print_queue.get(block=True, timeout=0.1)
-                message = self._with_command_name(message)
+                message, line = self._print_queue.get(block=True, timeout=0.05)
                 self._all_messages[line] = message
                 self._update()
             except queue.Empty:
                 pass
-
-    def _with_command_name(self, message: str) -> str:
-        if self.command_name is None:
-            return message
-        return f"\033[0;34m[{self.command_name}]\033[0m {message}"
+            except KeyboardInterrupt:
+                break
 
     def _get_width(self):
         try:
@@ -135,53 +169,65 @@ class MultilinePrinter:
             return 0
         
     def _update(self):
+        head = ""
         if self._already_printed:
-            self._erase_print_area()
-        self._update_messages()
+            head = self._erase_print_area()
+        body = self._update_messages()
+        self.out.write(head + body)
+        self.out.flush()
         self._already_printed = True
 
-    def _calc_lines(self, line: str) -> int:
-        def calc_line(line: str) -> int:
-            nlines = 0
-            while True:
-                if len(line) <= self.terminal_width:
-                    nlines += 1
-                    break
-                else:
-                    nlines += 1
-                    line = line[self.terminal_width:]
 
-            return nlines
-            
-        line = util.remove_escape_sequences(line)
+    def _line_to_components(self, line: str) -> list[int]:
+        components: list[int] = []
+        for char in line:
+            if unicodedata.east_asian_width(char) in 'FW':
+                components.append(2)
+            else:
+                components.append(1)
 
-        lines = line.split('\n')
+        return components
 
-        nlines = 0
+    def _lines_in_terminal(self, text: str) -> int:
+        text = util.remove_escape_sequences(text)
+        lines = text.split('\n')
+
+        number_of_lines = 0
+        current_column = 0
+
         for line in lines:
-            nlines += calc_line(line)
+            components = self._line_to_components(line)
 
-        return nlines
+            factor = 1
+            current_column = 0
+
+            for component in components:
+                current_column += component
+                if current_column > self.terminal_width:
+                    current_column = component
+                    factor += 1
+            
+            number_of_lines += factor
     
-    def _update_messages(self):
-        if not self.enabled:
-            return
+        return number_of_lines
+    
+    def _update_messages(self) -> str:
         self._line_flashed = 0
+        
+        res = ""
         for i in range(self.nlines):
-            self._line_flashed += self._calc_lines(self._all_messages[i])
-            self.out.write(self._all_messages[i])
-            self.out.write('\n')
+            self._line_flashed += self._lines_in_terminal(self._all_messages[i])
+            res += self._all_messages[i] + '\n'
+            
+        return res
 
-    def _erase_print_area(self):
-        if not self.enabled:
-            return
+    def _erase_print_area(self) -> str:
         if self._line_flashed == 0:
-            return
+            return ""
 
         code = '\033[1G' + '\033[A'*(self._line_flashed) + '\033[0J'
         # '\033[1G' move the cursor to the beginning of the line
         # '\033[A' move the cursor up
         # '\033[0J' clear from cursor to end of screen
 
-        self.out.write(code)
-        self.out.flush()
+        return code

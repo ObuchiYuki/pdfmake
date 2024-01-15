@@ -5,7 +5,7 @@ from PIL import Image
 from reportlab.pdfgen.canvas import Canvas
 from tqdm import tqdm
 
-from core.logger import Logger
+from util import Logger
 
 class PDFDocument:
     """

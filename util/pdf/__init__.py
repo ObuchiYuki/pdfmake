@@ -1,2 +1,2 @@
-from .pdfcompresser import PDFCompresser
-from .pdfdocument import PDFDocument
+from .pdfcompresser import *
+from .pdfdocument import *

@@ -4,12 +4,8 @@ from argparse import ArgumentParser
 
 import send2trash
 
-from core.util.regexchoice import RegexChoice
-from util.error import CommandError
-from core.logger import Logger
-from util.filemanager import FileManager
-
-from common.OptionParser import OptionParser
+from util import RegexChoice, CommandError, Logger, FileManager
+from command import OptionParser
 
 from pdfmake import PDFMake
 from pdfunpack import PDFUnpack

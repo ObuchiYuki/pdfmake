@@ -4,7 +4,7 @@ class Logger:
     is_debug: bool
     command_name: str
 
-    def __init__(self, command_name: str, is_debug: bool) -> None:
+    def __init__(self, command_name: str, is_debug: bool = False) -> None:
         self.command_name = command_name
         self.is_debug = is_debug
 

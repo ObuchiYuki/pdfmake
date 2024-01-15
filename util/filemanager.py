@@ -5,17 +5,15 @@ from pathlib import Path
 
 from uuid import uuid4 as uuid
 
-from core.logger import Logger
+from util.logger import Logger
 from util.error import *
 
 class FileManager:
     command_name: str
-    logger: Logger
     root: Path
 
-    def __init__(self, command_name: str, root: Path, logger: Logger) -> None:
+    def __init__(self, command_name: str, root: Path) -> None:
         self.command_name = command_name
-        self.logger = logger    
         self.root = root
         self.__cleanup_tmp_dir()
         
@@ -96,7 +94,6 @@ class FileManager:
                 shutil.rmtree(self.__tmp_path)
         except Exception as e:
             raise InternalError("Cleanup temporary directory failed.")
-        self.logger.debug("Cleanup temporary directory end.")
 
     def __create_tmp_dir(self):
         """

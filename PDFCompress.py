@@ -7,7 +7,7 @@ import send2trash
 from util import RegexChoice, CommandError, Logger, FileManager
 from command import OptionParser
 
-from pdfmake import PDFMake
+from __pdfmake import PDFMake
 from pdfunpack import PDFUnpack
 
 class PDFCompress:

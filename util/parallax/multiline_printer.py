@@ -20,7 +20,19 @@ Use with tqdm:
         printer1.print(f"i: {i}")
 """
 
-debug_file = open("debug.txt", "w")
+class LinePrinterTqdmWrapper:
+    printer: "SingleLinePrinter"
+
+    def __init__(self, printer: "SingleLinePrinter") -> None:
+        self.printer = printer
+
+    def flush(self):
+        self.printer.flush()
+
+    def write(self, message: str):
+        message = message.replace('\n', '').replace('\r', '')
+        if len(message) == 0: return
+        self.printer.print(message)
 
 class SingleLinePrinter:
     _index: int | None # none if not root
@@ -57,14 +69,9 @@ class SingleLinePrinter:
         self._index = index
         self._parent = parent
 
-    def clear(self):
-        self._message = ''
-
-    def write(self, message: str): # for tqdm
-        message = message.replace('\n', '').replace('\r', '')
-        if len(message) == 0:
-            return
-        self.print(message)
+    def tqdm_wrapper(self):
+        wrapper = LinePrinterTqdmWrapper(self)
+        return { "file": wrapper, "ncols": self.ncols, "ascii": False }
         
     def flush(self):
         root = self._get_root()
@@ -72,8 +79,15 @@ class SingleLinePrinter:
             root._base_printer._add_print_request(root)
 
     def print(self, message: str):
-        self._message = message
+        self._message = self.process_message(message)
         self.flush()
+
+    def process_message(self, message: str) -> str:
+        message = util.remove_escape_sequences_except_styling(message)
+        if message.count("\t"):
+            assert False, "Tab is not allowed in SingleLinePrinter"
+
+        return message
 
     def subprinter(self, prefix = "") -> "SingleLinePrinter":
         printer = SingleLinePrinter(index=None, parent=self, prefix=prefix)
@@ -86,14 +100,12 @@ class SingleLinePrinter:
         return self._parent._get_root()
 
     def _format(self) -> str:
-        if len(self._subprinters) == 0:
-            return self._prefix + self._message
+        result = self._prefix + self._message
 
-        result = self._message
         for subprinter in self._subprinters:
             result += '\n' + subprinter._format()
 
-        return self._prefix + result
+        return result
 
 class MultilinePrinter:        
 

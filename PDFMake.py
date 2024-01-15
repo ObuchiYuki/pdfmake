@@ -1,179 +1,272 @@
-import os
-import shutil
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
-from argparse import ArgumentParser, RawTextHelpFormatter
-
-from dataclasses import dataclass
+from argparse import ArgumentParser, RawTextHelpFormatter, Namespace
 
 import tqdm
 from PIL import Image
+from reportlab.pdfgen.canvas import Canvas
 
-from util import RegexChoice, FileManager, Logger, CommandError, natural_sort
-from util.pdf import PDFDocument, PDFCompresser
+import util
+import util.parallax as parallax
+import util.style as style
+import util.pdf as pdf
+import command
 
-from command import OptionParser, ResizeMode, CompressMode
+command.environment_check()
 
-image_exts =  {"png", "jpeg", "jpg", "webp", "heic"}
-
-class PDFMake:
-    command_name: str
-    logger: Logger
-    filemanager: FileManager
-    compressor: PDFCompresser
-    option_parser: OptionParser
-
+@dataclass
+class PDFMakeTask:
     @dataclass
     class Options:
-        delete: bool
-        resizemode: ResizeMode
-        compressmode: CompressMode
+        output: Path | None
+        resizemode: command.ResizeMode
+        compressmode: command.CompressMode
 
-    def __init__(self, command_name: str, filemanager: FileManager, logger: Logger) -> None:    
-        self.command_name = command_name
+    input_path: Path
+    options: Options 
+
+    printer: parallax.SingleLinePrinter
+    spinner: parallax.Spinner
+    progress_printer: parallax.SingleLinePrinter
+    dot_spinner: parallax.Spinner = field(default_factory=parallax.Spinner.ellipsis)
+    
+    status = "Pending..."
+    icon: str | None = None
+    show_spinner = True
+    finished = False
+    
+    @property
+    def name(self):
+        return self.input_path.absolute().name
+    
+    @property
+    def output_path(self) -> Path:
+        return self.options.output or self.input_path.parent
+
+    def update_status_message(self):
+        message = ""
+        if self.show_spinner:
+            message += self.spinner.next()
+            message += " "
+        elif self.icon is not None:
+            message += self.icon
+            message += " "
+
+        message += style.styled(self.status, style.Color.YELLOW)
+        message += ": "
+        message += self.name
+        
+        self.printer.print(message)
+
+
+class PDFMake:
+    filemanager: util.FileManager
+    compresser: pdf.PDFCompresser
+
+    def __init__(self, filemanager: util.FileManager, logger: util.Logger) -> None:
+        self.filemanager = filemanager
+        self.compresser = pdf.PDFCompresser(filemanager=filemanager, logger=logger)
+
+    def find_images(self, directory_path: Path, task: PDFMakeTask) -> list[Path]:
+        task.status = f"Finding images..."
+        task.show_spinner = True
+        image_exts =  {"png", "jpeg", "jpg", "webp", "heic"}
+
+        image_pathes: list[Path] = []
+
+        for path in directory_path.iterdir():
+            if path.suffix.lstrip('.') in image_exts and not path.name.startswith("."):
+                image_pathes.append(path)
+
+        util.natural_sort(image_pathes)
+
+        return image_pathes
+
+    def resize_image(self, image_pathes: list[Path], task: PDFMakeTask) -> list[Path]:
+        if task.options.resizemode.no_limit:
+            return image_pathes
+        
+        size_to_resize = task.options.resizemode.size
+        task.status = f"Resizing to {size_to_resize}..."
+        task.show_spinner = True
+
+        nimage_pathes: list[Path] = []
+        tmp_compress_path = self.filemanager.unique_temporary_directory()
+
+        for image_path in tqdm.tqdm(
+            image_pathes,
+            unit="page",
+            smoothing=0.1,
+            **task.progress_printer.tqdm_wrapper()
+        ):
+            nimage_path = image_path
+            nimage_path = tmp_compress_path / (image_path.name + ".png")
+            image = Image.open(image_path)
+            if image.size[0] >= size_to_resize[0] or image.size[1] >= size_to_resize[1]:
+                image.thumbnail(size_to_resize, Image.Resampling.LANCZOS)
+                image.save(nimage_path)
+                nimage_pathes.append(nimage_path)
+            else:
+                nimage_pathes.append(image_path)
+
+        return nimage_pathes
+        
+    def save_pdf(self, task: PDFMakeTask, output_path: Path, image_pathes: list[Path]):
+        task.status = f"Generating PDF..."
+        task.show_spinner = True
+        canvas = Canvas(str(output_path.absolute()))
+
+        for image_path in tqdm.tqdm(
+            image_pathes, 
+            unit="page",
+            **task.progress_printer.tqdm_wrapper()
+        ):
+            image = Image.open(image_path)
+            canvas.setPageSize(image.size)
+            canvas.drawImage(image_path, 0, 0)
+            canvas.showPage()
+        
+        task.status = f"Saving PDF"
+        canvas.save()
+
+    def compress_pdf(self, task: PDFMakeTask, input_path: Path, output_path: Path):
+        task.status = "Compressing PDF..."
+        task.show_spinner = True
+        task.progress_printer.print(f"Compress level: {task.options.compressmode.level.display_string()}")
+
+        self.compresser.compress(task.options.compressmode.level, input_path, output_path)
+        
+
+
+class PDFMakeCommand:
+    logger: util.Logger
+    filemanager: util.FileManager
+
+    parser: ArgumentParser
+    
+    parallax_executor: parallax.ParallaxExecutor
+    option_parser: command.OptionParser
+
+    make: PDFMake
+
+    def __init__(self, filemanager: util.FileManager, logger: util.Logger, parser: ArgumentParser | None = None) -> None:
         self.logger = logger
         self.filemanager = filemanager
-        self.compressor = PDFCompresser(filemanager=self.filemanager, logger=self.logger)
-        self.option_parser = OptionParser(logger)
+        self.parallax_executor = parallax.ParallaxExecutor()
+        self.option_parser = command.OptionParser(logger)
+        self.make = PDFMake(filemanager, logger)
 
-    def run(self, arguments: list[str]):
-        parser = ArgumentParser(
-            prog=self.command_name,
+        self.parser = parser or ArgumentParser(
+            prog=logger.command_name,
             description="Convert images to PDF.",
             formatter_class=RawTextHelpFormatter
         )
-        parser.add_argument(
+        self.parser.add_argument(
             "inputs", nargs="+", 
             help="Input images or directory."
         )
-        parser.add_argument(
+        self.parser.add_argument(
             "-t", "--type", default=None,
             choices=["comic", "illust", "photo", "novel"],
             help="Compress and resize type. (default: comic) \n- comic: -s medium -c default\n- illust: -s large -c very_low\n- photo: -s nolimit -c very_low\n- novel: -s nolimit -c default"
         )
-        parser.add_argument(
+        self.parser.add_argument(
             "-s", "--size", type=str, default="medium", 
-            choices=RegexChoice(r"nolimit|small|medium|large|\d+x\d+"), 
+            choices=util.RegexChoice(r"nolimit|small|medium|large|\d+x\d+"), 
             help="Image max size in PDF (aspect fit) (default: medium). \n- small: 1200x1200\n- medium: 1500x1500\n- large: 2000x2000\n- nolimit: input size"
         )
-        parser.add_argument(
+        self.parser.add_argument(
             "-c", "--compress", type=str, default="default", 
             choices=["none", "very_low", "low", "default", "high", "very_high"],
             help="PDF Compression Level (default: default).\n- very_low: 72 dpi\n- low: 150 dpi\n- default: auto\n- high: 300 dpi\n- very_high: 300 dpi~"
         )
-        parser.add_argument(
-            "-d", "--delete", default=False, action="store_true",
-            help="Delete images/directories after convert."
+        self.parser.add_argument(
+            "-p", "--parallel", type=int, default=None,
+            help="Parallel count. (default: 4)"
         )
-        parser.add_argument(
+        self.parser.add_argument(
             "-o", "--output", default=None, 
             help="Output directory. (default: input file directory)"
         )
 
-        res = parser.parse_args(arguments)
+    def run(self, args: Namespace):
+        parallel_count = args.parallel or 4
+        input_pathes = [Path(i) for i in args.inputs]
+
+        output = self.option_parser.parse_output(args.output)
+        resizemode, compressmode = self.option_parser.parse_preprocess(args.compress, args.size, args.type)
         
-        delete = res.delete or False
-        output = self.option_parser.parse_output(res.output)
-        resizemode, compressmode = self.option_parser.parse_preprocess(res.compress, res.size, res.type)
+        options = PDFMakeTask.Options(
+            output=output,
+            resizemode=resizemode, 
+            compressmode=compressmode
+        )
+
+        self.parallax_executor.max_parallel = parallel_count
+
+        printer = parallax.MultilinePrinter(
+            nlines=len(input_pathes),
+            root_prefix=style.styled(f"[{self.logger.command_name}] ", style.Color.BLUE)
+        )
+
+        tasks: list[PDFMakeTask] = []
         
-        options = PDFMake.Options(delete=delete, resizemode=resizemode, compressmode=compressmode)
+        for i, input_path in enumerate(input_pathes):
+            subprinter = printer.printer(i)
+            task = PDFMakeTask(
+                input_path=input_path,
+                options=options,
+                printer=subprinter,
+                progress_printer=subprinter.subprinter(prefix="          ╰─ "),
+                spinner=parallax.Spinner.dots(offset=i)
+            )
+            task.progress_printer.print(f"Waiting another tasks to complete...")
+            tasks.append(task)
+            self.parallax_executor.register(self._run_task, task)
 
-        # ================================================== #
-        # input #
-        input_path = [Path(i) for i in res.inputs]
+        while not all([task.finished for task in tasks]):
+            try:
+                time.sleep(0.1)
+            except:
+                break
+            for task in tasks:
+                task.update_status_message()
 
-        directory_pathes: list[Path] = []
-        images_pathes: list[Path] = []
+        printer.terminate()
+        
+    def _run_task(self, task: PDFMakeTask):
+        try: 
+            output_path = self.filemanager.noduplicate_path(task.output_path, basename=task.name, ext="pdf")
+            image_pathes = self.make.find_images(task.input_path, task)
+            image_pathes = self.make.resize_image(image_pathes, task)
 
-        for path in input_path:
-            if not path.exists():
-                self.logger.error(f"File not found '{path}'.")
-                continue
-
-            if path.is_dir():
-                directory_pathes.append(path)
-            elif path.suffix.lstrip('.') in image_exts:
-                images_pathes.append(path)
+            if task.options.compressmode.no_compress:
+                pdf_output_path = output_path
             else:
-                self.logger.error(f"Files with the extension '{path.suffix}' are not supported.")
+                pdf_output_path = self.filemanager.unique_temporary_directory() / output_path.name
 
-        # ================================================== #
-        # convert #
-        if len(images_pathes):
-            self.make_pdf_from_images(name=images_pathes[0].name, options=options, output=output or Path(), images=images_pathes)
-        if len(directory_pathes):
-            self.make_pdf_from_directories(options=options, output=output, directories=directory_pathes)
+            self.make.save_pdf(task, pdf_output_path, image_pathes)
 
-    def make_pdf_from_directories(self, options: Options, output: Path | None, directories: list[Path]):
-        if output is not None:
-            output.mkdir(parents=True, exist_ok=True)
-        for directory in directories:
-            self.make_pdf_from_directory(options, output, directory)
-                
-    def make_pdf_from_directory(self, options: Options, output: Path | None, directory: Path) -> Path | None:
-        try:
-            if not directory.is_dir():
-                raise CommandError(f"{directory.name} is not directory.")
-            images = [p for p in directory.iterdir() if p.suffix.lstrip('.') in image_exts and not p.name.startswith(".")]
-            natural_sort(images)
-            if len(images):
-                self.logger.log(f"{len(images)} images found in '{directory.name}'.")
-                output_result = self.make_pdf_from_images(name=directory.name, options=options, output=output or directory.parent, images=images)
-                if options.delete:
-                    shutil.rmtree(directory)
+            if not task.options.compressmode.no_compress:
+                self.make.compress_pdf(task, pdf_output_path, output_path)
 
-                return output_result
-            else:
-                self.logger.error(f"No images found in {directory.name}.")
+            task.icon = style.styled("✓", style.Color.GREEN)
+            task.status = style.styled("Completed!", style.Color.GREEN)
+            task.progress_printer.print(f"Saved to {output_path.absolute().name}")
         except Exception as e:
-            self.logger.error(f"Convert '{directory.name}' to PDF failed with error.")
-            self.logger.error(str(e))
-        
-        return None
+            task.status = style.styled(f"{e.__class__.__name__}", style.Color.RED)
+            task.icon = style.styled("✗", style.Color.RED)
+            task.progress_printer.print(f"{e}")
+        finally:
+            task.show_spinner = False
+            task.finished = True
+            task.update_status_message()
 
-    def make_pdf_from_images(self, name: str, output: Path, options: Options, images: list[Path]) -> Path:
-        self.logger.important(f"Start converting '{name}'")
-
-        document = PDFDocument(title=name, author=self.command_name, logger=self.logger)
-        
-        if not options.resizemode.no_limit:
-            size_to_resize = options.resizemode.size
-            self.logger.log(f"Resizing images to {size_to_resize}...")
-
-            tmp_compress_path = self.filemanager.unique_temporary_directory()
-
-            for image_path in tqdm.tqdm(images):
-                n_image_path = image_path
-                n_image_path = tmp_compress_path / image_path.name
-                image = Image.open(image_path)
-                if image.size[0] >= size_to_resize[0] or image.size[1] >= size_to_resize[1]:
-                    image.thumbnail(size_to_resize, Image.Resampling.LANCZOS)
-                    image.save(n_image_path)
-                    document.append_page(n_image_path)
-                else:
-                    document.append_page(image_path)
-        else:
-            for image_path in images:
-                document.append_page(image_path)
-        output_path = self.filemanager.noduplicate_path(output, basename=name, ext="pdf")
-
-        if not options.compressmode.no_compress:
-            tmp_path = self.filemanager.noduplicate_path(self.filemanager.temporary_directory(), basename=name, ext="pdf")
-            document.save_pdf(tmp_path)
-            self.compressor.compress(options.compressmode.level, tmp_path, output_path)
-            os.remove(tmp_path)                                    
-        else:
-            document.save_pdf(output_path)
-
-        self.logger.important(f"PDF '{name}' generated.")
-
-        return output_path
-
-
-import sys
 
 if __name__ == "__main__":
-    command_name = "pdfmake"
-    logger = Logger(command_name=command_name, is_debug=False)
-    filemanager = FileManager(command_name=command_name, root=Path(), logger=logger)
-    pdfmake = PDFMake(command_name=command_name, filemanager=filemanager, logger=logger)
-    pdfmake.run(sys.argv[1:])
+    logger = util.Logger(command_name="pdfmake")
+    filemanager = util.FileManager(command_name=logger.command_name, root=Path())
+    pdfmake = PDFMakeCommand(filemanager, logger)
+    args = pdfmake.parser.parse_args()
+    pdfmake.run(args)

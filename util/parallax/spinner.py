@@ -21,23 +21,59 @@ class Spinner:
     @staticmethod
     def scrolling(offset: int = 0) -> "Spinner":
         return Spinner(spinner=[".  ", ".. ", "...", " ..", "  .", "   "], offset=offset)
-        
+    
     @staticmethod
     def soccer(offset: int = 0) -> "Spinner":
         return Spinner(spinner=[
-			"=🧑⚽️       🧑 ",
-			"🧑  ⚽️      🧑 ",
-			"🧑   ⚽️     🧑 ",
-			"🧑    ⚽️    🧑 ",
-			"🧑     ⚽️   🧑 ",
-			"🧑      ⚽️  🧑 ",
-			"🧑       ⚽️🧑= ",
-			"🧑      ⚽️  🧑 ",
-			"🧑     ⚽️   🧑 ",
-			"🧑    ⚽️    🧑 ",
-			"🧑   ⚽️     🧑 ",
-			"🧑  ⚽️      🧑 "
-		], offset=offset)
+            "=🧑⚽️       🧑 ",
+            "🧑  ⚽️      🧑 ",
+            "🧑   ⚽️     🧑 ",
+            "🧑    ⚽️    🧑 ",
+            "🧑     ⚽️   🧑 ",
+            "🧑      ⚽️  🧑 ",
+            "🧑       ⚽️🧑= ",
+            "🧑      ⚽️  🧑 ",
+            "🧑     ⚽️   🧑 ",
+            "🧑    ⚽️    🧑 ",
+            "🧑   ⚽️     🧑 ",
+            "🧑  ⚽️      🧑 "
+        ], offset=offset)
+        
+    @staticmethod
+    def pong(offset: int = 0) -> "Spinner":
+        return Spinner(spinner= [
+            "▐⠂       ▌",
+            "▐⠈       ▌",
+            "▐ ⠂      ▌",
+            "▐ ⠠      ▌",
+            "▐  ⡀     ▌",
+            "▐  ⠠     ▌",
+            "▐   ⠂    ▌",
+            "▐   ⠈    ▌",
+            "▐    ⠂   ▌",
+            "▐    ⠠   ▌",
+            "▐     ⡀  ▌",
+            "▐     ⠠  ▌",
+            "▐      ⠂ ▌",
+            "▐      ⠈ ▌",
+            "▐       ⠂▌",
+            "▐       ⠠▌",
+            "▐       ⡀▌",
+            "▐      ⠠ ▌",
+            "▐      ⠂ ▌",
+            "▐     ⠈  ▌",
+            "▐     ⠂  ▌",
+            "▐    ⠠   ▌",
+            "▐    ⡀   ▌",
+            "▐   ⠠    ▌",
+            "▐   ⠂    ▌",
+            "▐  ⠈     ▌",
+            "▐  ⠂     ▌",
+            "▐ ⠠      ▌",
+            "▐ ⡀      ▌",
+            "▐⠠       ▌"
+        ], offset=offset)
+        
 
     def __init__(self, spinner: list[str] | str, offset: int = 0, factor: int = 1) -> None:
         spinner_list: list[str] = []

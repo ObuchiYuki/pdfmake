@@ -15,6 +15,21 @@ class PDFCompressLevel(Enum):
     low = 3
     very_low = 4
 
+    def display_string(self) -> str:
+        if self == PDFCompressLevel.very_high:
+            return "Very High"
+        if self == PDFCompressLevel.high:
+            return "High"
+        if self == PDFCompressLevel.default:
+            return "Default"
+        if self == PDFCompressLevel.low:
+            return "Low"
+        if self == PDFCompressLevel.very_low:
+            return "Very Low"
+        if self == PDFCompressLevel.none:
+            return "None"
+        return "Unknown"
+
     @staticmethod
     def from_str(string: str) -> Union["PDFCompressLevel", None]:
         if string == "default":
@@ -61,13 +76,10 @@ class PDFCompresser:
         
     def compress(self, level: PDFCompressLevel, pdf_path: Path, output_path: Path):
         if not self.enabled:
-            self.logger.error("Command 'gs' not found. Please install ghostscript.")
             return pdf_path
         if level == PDFCompressLevel.none:
             return pdf_path
             
-        self.logger.log(f"Compressing PDF... (compress_level: {level.gs_name()})")
-
         subprocess.call([
             "gs", 
             "-sDEVICE=pdfwrite",

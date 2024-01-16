@@ -30,7 +30,7 @@ class LinePrinterTqdmWrapper:
         self.printer.flush()
 
     def write(self, message: str):
-        message = util.remove_escape_sequences(message)
+        message = util.remove_escape_sequences(message).replace('\r', '').replace('\n', '')
         if len(message) == 0: return
         self.printer.print(message)
 

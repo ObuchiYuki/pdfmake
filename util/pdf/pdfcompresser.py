@@ -79,8 +79,8 @@ class PDFCompresser:
             return pdf_path
         if level == PDFCompressLevel.none:
             return pdf_path
-            
-        subprocess.call([
+        
+        subprocess.run([
             "gs", 
             "-sDEVICE=pdfwrite",
             "-dCompatibilityLevel=1.4",
@@ -88,5 +88,5 @@ class PDFCompresser:
             "-dNOPAUSE", "-dQUIET", "-dBATCH",
             f"-sOutputFile={str(output_path)}",
             str(pdf_path)
-        ])
+        ], capture_output=True)
         

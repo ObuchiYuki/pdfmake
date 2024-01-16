@@ -168,7 +168,7 @@ class PDFMakeCommand:
         self.parser.add_argument(
             "-t", "--type", default=None,
             choices=["comic", "illust", "photo", "novel"],
-            help="Compress and resize type. (default: comic) \n- comic: -s medium -c default\n- illust: -s large -c very_low\n- photo: -s nolimit -c very_low\n- novel: -s nolimit -c default"
+            help="Compress and resize type. (default: comic) \n- comic: -s large -c default\n- illust: -s large -c very_low\n- photo: -s nolimit -c very_low\n- novel: -s nolimit -c default"
         )
         self.parser.add_argument(
             "-s", "--size", type=str, default="medium", 
@@ -252,7 +252,7 @@ class PDFMakeCommand:
 
             task.icon = style.styled("✓", style.Color.GREEN)
             task.status = style.styled("Completed!", style.Color.GREEN)
-            task.progress_printer.print(f"Saved to {output_path.absolute().name}")
+            task.progress_printer.print(f"Saved to {output_path.name}")
         except Exception as e:
             task.status = style.styled(f"{e.__class__.__name__}", style.Color.RED)
             task.icon = style.styled("✗", style.Color.RED)

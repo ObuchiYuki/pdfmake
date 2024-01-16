@@ -26,7 +26,7 @@ class OptionParser:
         compress_mode = self.parse_compress(compress)
         
         if type == "comic":
-            resize_mode = ResizeMode(no_limit=False, size=(1500, 1500))
+            resize_mode = ResizeMode(no_limit=False, size=(2000, 2000))
             compress_mode = CompressMode(no_compress=False, level=pdf.PDFCompressLevel.default)
         elif type == "illust":
             resize_mode = ResizeMode(no_limit=False, size=(2000, 2000))

@@ -97,7 +97,6 @@ class PDFMake:
         for image_path in tqdm.tqdm(
             image_pathes,
             unit="page",
-            smoothing=0.1,
             **task.progress_printer.tqdm_wrapper()
         ):
             nimage_path = image_path

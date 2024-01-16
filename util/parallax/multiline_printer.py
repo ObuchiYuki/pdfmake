@@ -30,7 +30,7 @@ class LinePrinterTqdmWrapper:
         self.printer.flush()
 
     def write(self, message: str):
-        message = message.replace('\n', '').replace('\r', '')
+        message = util.remove_escape_sequences(message)
         if len(message) == 0: return
         self.printer.print(message)
 
@@ -83,7 +83,6 @@ class SingleLinePrinter:
         self.flush()
 
     def process_message(self, message: str) -> str:
-        message = util.remove_escape_sequences_except_styling(message)
         if message.count("\t"):
             assert False, "Tab is not allowed in SingleLinePrinter"
 

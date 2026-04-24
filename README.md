@@ -1,116 +1,88 @@
 # pdfmake
 
-pdfmake is a command line tools (CLI)
+CLI toolkit for creating, extracting, and compressing PDFs.
 
-A package of 3 tools. 
-- pdfmake: Make compressed pdf from directories/images.
-- pdfunpack: Extract all images from pdf files.
-- pdfcompress: Extract all images and remake pdfs.
+**[日本語版 README はこちら](README-ja.md)**
 
-## install
+## Features
 
-```shell
-$ pip install -r requirements.txt
+- **make** — Convert image directories to compressed PDF
+- **unpack** — Extract all images from PDF files
+- **compress** — Re-encode PDFs for smaller file size
+
+## Install
+
+```bash
+pip install -e .
 ```
 
-##### macOS
+### Ghostscript (optional, for PDF compression)
 
-```
-brew install ghostscript
-```
+| OS      | Command                                       |
+|---------|-----------------------------------------------|
+| macOS   | `brew install ghostscript`                    |
+| Windows | `winget install -e --id ArtifexSoftware.GhostScript` |
+| Linux   | `apt-get install ghostscript`                 |
 
-##### Windows
-
-```
-winget install -e --id ArtifexSoftware.GhostScript
-```
-
-##### Linux
-
-```
-apt-get install ghostscript
-```
-
-
+> Ghostscript is only required for the `-c` (compress) option in `make` and for the `compress` command. Without it, PDFs are generated without Ghostscript compression.
 
 ## Usage
 
-It is strongly recommended to create a bin file in a directory with a path that calls these Python files.
+After installation, the `pdfmake` command is available:
 
-##### PDFMake
+```bash
+# Convert directories of images to PDFs (default command)
+pdfmake make dir1/ dir2/
 
-```shell
-$ python PDFMake.py [args...]
+# With options
+pdfmake make dir1/ -t comic -p 4 -o ./output/
+
+# Extract images from PDFs
+pdfmake unpack file.pdf
+
+# Compress existing PDFs
+pdfmake compress file.pdf -t comic -f
 ```
 
-```
-usage: pdfmake [-h] [-s {nolimit|small|medium|large|\d+x\d+}] [-o OUTPUT] [-d] [-c {none,default,high,very_high}] inputs [inputs ...]
-
-Convert images to PDF.
-
-positional arguments:
-  inputs                Input images or directory.
-
-options:
-  -h, --help            show this help message and exit
-  -s {nolimit|small|medium|large|\d+x\d+}, --size {nolimit|small|medium|large|\d+x\d+}
-                        Image max size in PDF. small: 1200x1200, medium: 1500x1500, large: 2000x2000 (default: nolimit)
-  -o OUTPUT, --output OUTPUT
-                        Output directory. (default: input file directory)
-  -d, --delete          Delete images/directories after convert.
-  -c {none,default,high,very_high}, --compress {none,default,high,very_high}
-                        PDF Compression Level.
-```
-
-##### PDFUnpack
-
-```shell
-$ python PDFUnpack.py [args...]
-```
+### `make` — Images to PDF
 
 ```
-usage: pdfunpack [-h] [-o OUTPUT] inputs [inputs ...]
-
-Convert images to PDF.
-
-positional arguments:
-  inputs                Input images or directory.
-
-options:
-  -h, --help            show this help message and exit
-  -o OUTPUT, --output OUTPUT
-                        Output directory.
+pdfmake make [inputs...] [-t TYPE] [-s SIZE] [-c COMPRESS] [-p PARALLEL] [-o OUTPUT]
 ```
 
+- `inputs` — Image files or directories containing images
+- `-t, --type` — Preset: `comic`, `illust`, `photo`, `novel`
+- `-s, --size` — Max image size: `small`, `medium`, `large`, `nolimit`, or `WxH`
+- `-c, --compress` — Ghostscript compression: `none`, `very_low`, `low`, `default`, `high`, `very_high`
+- `-p, --parallel` — Parallel task count (default: 4)
+- `-o, --output` — Output directory
 
+### `unpack` — PDF to Images
 
-##### PDFCompress
-
-```shell
-$ python PDFCompress.py [args...]
+```
+pdfmake unpack [inputs...] [-o OUTPUT]
 ```
 
+- `inputs` — PDF files to extract images from
+- `-o, --output` — Output directory
+
+### `compress` — Re-encode PDF
+
 ```
-usage: pdfcompress [-h] [-s {nolimit|small|medium|large|\d+x\d+}] [-o OUTPUT] [-d] [-c {none,default,high,very_high}] [-f] inputs [inputs ...]
-
-Convert images to PDF.
-
-positional arguments:
-  inputs                input images or directory.
-
-options:
-  -h, --help            show this help message and exit
-  -s {nolimit|small|medium|large|\d+x\d+}, --size {nolimit|small|medium|large|\d+x\d+}
-                        Image max size in PDF. small: 1200x1200, medium: 1500x1500, large: 2000x2000 (default: nolimit)
-  -o OUTPUT, --output OUTPUT
-                        Output directory. (default: input file directory)
-  -d, --delete          delete images/directories after convert.
-  -c {none,default,high,very_high}, --compress {none,default,high,very_high}
-                        PDF Compression Level.
-  -f, --force_override  override an original pdf.
+pdfmake compress [inputs...] [-t TYPE] [-s SIZE] [-c COMPRESS] [-p PARALLEL] [-o OUTPUT] [-f]
 ```
 
+- Unpacks PDF → resizes images → regenerates PDF → compares file size
+- `-f, --force-override` — Replace original PDF file (only if result is smaller)
 
+### Development
 
-## Create command
+```bash
+# Run without installing
+python run.py make dir1/
+python run.py unpack file.pdf
+```
 
+## License
+
+MIT — Copyright (c) 2023 ObuchiYuki
